@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Shopping Cart - Archford Store{% endblock %}
+
+{% block styles %}
+.cart-header {
+    margin-bottom: 2.5rem;
+}
+
+.cart-grid {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 3rem;
+}
+
+.cart-items {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    border: 1px solid var(--light-gray);
+}
+
+.cart-item {
+    display: flex;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--light-gray);
+}
+
+.cart-item:last-child {
+    border-bottom: none;
+}
+
+.item-img {
+    width: 100px;
+    height: 100px;
+    object-fit: contain;
+    background: #f8f9fa;
+    border-radius: var(--border-radius);
+    margin-right: 1.5rem;
+    padding: 0.5rem;
+}
+
+.item-info {
+    flex: 1;
+}
+
+.item-info h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+}
+
+.item-info p {
+    color: var(--gray);
+    font-size: 0.9rem;
+}
+
+.item-qty {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 0 2rem;
+}
+
+.qty-input {
+    width: 60px;
+    padding: 0.5rem;
+    border: 1px solid var(--light-gray);
+    border-radius: var(--border-radius);
+    text-align: center;
+}
+
+.item-price {
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    min-width: 100px;
+    text-align: right;
+}
+
+.remove-btn {
+    color: var(--secondary-color);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.25rem;
+    margin-left: 2rem;
+    transition: var(--transition);
+}
+
+.remove-btn:hover {
+    transform: scale(1.1);
+}
+
+.cart-summary {
+    position: sticky;
+    top: 100px;
+    height: fit-content;
+}
+
+.summary-card {
+    background: var(--white);
+    padding: 2rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--light-gray);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.summary-total {
+    border-top: 2px solid var(--light-gray);
+    padding-top: 1rem;
+    margin-top: 1rem;
+    font-weight: 800;
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+.empty-cart {
+    text-align: center;
+    padding: 5rem;
+}
+
+.empty-cart i {
+    font-size: 4rem;
+    color: var(--light-gray);
+    margin-bottom: 1.5rem;
+}
+
+@media (max-width: 992px) {
+    .cart-grid {
+        grid-template-columns: 1fr;
+    }
+}
+{% endblock %}
+
+{% block content %}
+<div class="cart-header">
+    <h1>Shopping Cart</h1>
+</div>
+
+{% if not cart %}
+    <div class="card empty-cart">
+        <i class="fas fa-shopping-basket"></i>
+        <h2>Your cart is empty</h2>
+        <p>Looks like you haven't added anything to your cart yet.</p>
+        <a href="{{ url_for('shop') }}" class="btn btn-primary" style="margin-top: 2rem; padding: 1rem 2rem;">START SHOPPING</a>
+    </div>
+{% else %}
+    <div class="cart-grid">
+        <div class="cart-items">
+            {% for item in cart %}
+            <div class="cart-item">
+                <img src="{{ item.img }}" alt="{{ item.name }}" class="item-img" onerror="this.src='https://placehold.co/200x200?text=No+Image'">
+                <div class="item-info">
+                    <a href="{{ url_for('product', item_id=item.id) }}">
+                        <h3>{{ item.name }}</h3>
+                    </a>
+                    <p>Unit: {{ item.pkg }} | ID: {{ item.id }}</p>
+                </div>
+                <div class="item-qty">
+                    <form action="{{ url_for('update_cart') }}" method="POST" class="qty-form">
+                        <input type="hidden" name="item_id" value="{{ item.id }}">
+                        <input type="number" name="qty" value="{{ item.qty }}" min="1" class="qty-input" onchange="this.form.submit()">
+                    </form>
+                </div>
+                <div class="item-price">
+                    ${{ "%.2f"|format(item.price * item.qty) }}
+                    <div style="font-weight: 400; font-size: 0.8rem; color: var(--gray);">${{ "%.2f"|format(item.price) }} ea</div>
+                </div>
+                <a href="{{ url_for('remove_from_cart', item_id=item.id) }}" class="remove-btn" title="Remove item">
+                    <i class="fas fa-times-circle"></i>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="cart-summary">
+            <div class="summary-card">
+                <h2 style="margin-bottom: 1.5rem;">Order Summary</h2>
+                <div class="summary-row">
+                    <span>Subtotal ({{ cart|sum(attribute='qty') }} items)</span>
+                    <span>${{ "%.2f"|format(total) }}</span>
+                </div>
+                <div class="summary-row">
+                    <span>Shipping</span>
+                    <span>{% if total >= 50 %}FREE{% else %}$7.50{% endif %}</span>
+                </div>
+                {% if total < 50 %}
+                <p style="font-size: 0.8rem; color: var(--secondary-color); margin-bottom: 1rem;">
+                    Add ${{ "%.2f"|format(50 - total) }} more for FREE shipping!
+                </p>
+                {% endif %}
+                <div class="summary-row summary-total">
+                    <span>Total</span>
+                    <span>${{ "%.2f"|format(total + (0 if total >= 50 else 7.50)) }}</span>
+                </div>
+                <a href="{{ url_for('checkout') }}" class="btn btn-secondary" style="width: 100%; padding: 1.25rem; margin-top: 2rem; font-size: 1.1rem;">
+                    PROCEED TO CHECKOUT
+                </a>
+                <div style="text-align: center; margin-top: 1rem;">
+                    <a href="{{ url_for('shop') }}" style="color: var(--gray); font-size: 0.9rem;">Continue Shopping</a>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

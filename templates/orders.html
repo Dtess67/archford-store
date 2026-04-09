@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Order History - Archford Store{% endblock %}
+
+{% block styles %}
+.orders-header {
+    margin-bottom: 2.5rem;
+}
+
+.order-card {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--light-gray);
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+.order-card-header {
+    background: #f8f9fa;
+    padding: 1.25rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--light-gray);
+}
+
+.order-meta {
+    display: flex;
+    gap: 3rem;
+}
+
+.meta-group h4 {
+    font-size: 0.75rem;
+    color: var(--gray);
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+
+.meta-group p {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.order-card-body {
+    padding: 2rem;
+}
+
+.order-items-list {
+    margin-bottom: 1.5rem;
+}
+
+.order-item-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px dashed var(--light-gray);
+}
+
+.order-item-row:last-child {
+    border-bottom: none;
+}
+
+.order-card-footer {
+    padding: 1.25rem 2rem;
+    background: #fff;
+    border-top: 1px solid var(--light-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.status-badge {
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.status-pending { background: #fff3e0; color: #ef6c00; }
+.status-processing { background: #e3f2fd; color: #1565c0; }
+.status-shipped { background: #e8f5e9; color: #2e7d32; }
+
+.empty-orders {
+    text-align: center;
+    padding: 5rem;
+}
+{% endblock %}
+
+{% block content %}
+<div class="orders-header">
+    <h1>Order History</h1>
+    <p style="color: var(--gray);">View and track your institutional purchase requests.</p>
+</div>
+
+{% if not orders %}
+    <div class="card empty-orders">
+        <i class="fas fa-history" style="font-size: 4rem; color: var(--light-gray); margin-bottom: 1.5rem;"></i>
+        <h2>No orders found</h2>
+        <p>You haven't placed any orders yet.</p>
+        <a href="{{ url_for('shop') }}" class="btn btn-primary" style="margin-top: 2rem;">START SHOPPING</a>
+    </div>
+{% else %}
+    {% for order in orders %}
+    <div class="order-card">
+        <div class="order-card-header">
+            <div class="order-meta">
+                <div class="meta-group">
+                    <h4>Order Placed</h4>
+                    <p>{{ order.created_at }}</p>
+                </div>
+                <div class="meta-group">
+                    <h4>Total</h4>
+                    <p>${{ "%.2f"|format(order.total) }}</p>
+                </div>
+                <div class="meta-group">
+                    <h4>PO Number</h4>
+                    <p>{{ order.po_number if order.po_number else 'None' }}</p>
+                </div>
+            </div>
+            <div class="meta-group" style="text-align: right;">
+                <h4>Order #</h4>
+                <p>{{ order.order_num }}</p>
+            </div>
+        </div>
+        <div class="order-card-body">
+            <div class="order-items-list">
+                {% for item in order.items %}
+                <div class="order-item-row">
+                    <span><strong>{{ item.qty }}x</strong> {{ item.name }}</span>
+                    <span>${{ "%.2f"|format(item.line_total) }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <div style="font-size: 0.9rem; color: var(--gray);">
+                <i class="fas fa-truck"></i> Shipped to: {{ order.address }}, {{ order.city }}
+            </div>
+        </div>
+        <div class="order-card-footer">
+            <span class="status-badge status-{{ order.status.lower() }}">{{ order.status }}</span>
+            <a href="{{ url_for('contact') }}?subject=Order%20{{ order.order_num }}" class="btn btn-outline" style="font-size: 0.8rem; padding: 0.5rem 1rem;">HELP WITH ORDER</a>
+        </div>
+    </div>
+    {% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}{{ product.name }} - Archford Store{% endblock %}
+
+{% block styles %}
+.product-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    margin-bottom: 5rem;
+}
+
+.product-gallery {
+    background: var(--white);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    border: 1px solid var(--light-gray);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.product-gallery img {
+    max-width: 100%;
+    max-height: 500px;
+    object-fit: contain;
+}
+
+.product-info-header {
+    margin-bottom: 2rem;
+}
+
+.product-info-header .cat {
+    color: var(--secondary-color);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.product-info-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+}
+
+.price-tag {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    font-family: 'Outfit', sans-serif;
+    margin-bottom: 0.5rem;
+}
+
+.pkg-info {
+    color: var(--gray);
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+}
+
+.product-description {
+    margin-bottom: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--light-gray);
+    color: #4a5568;
+    font-size: 1.05rem;
+}
+
+.add-section {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+}
+
+.qty-input {
+    width: 80px;
+    padding: 0.75rem;
+    border: 1px solid var(--light-gray);
+    border-radius: var(--border-radius);
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.meta-info {
+    font-size: 0.9rem;
+    color: var(--gray);
+}
+
+.meta-info div {
+    margin-bottom: 0.5rem;
+}
+
+.meta-info span {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.related-section {
+    margin-top: 4rem;
+}
+
+.related-section h2 {
+    margin-bottom: 2rem;
+    font-size: 1.75rem;
+}
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1.5rem;
+}
+
+@media (max-width: 768px) {
+    .product-detail-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}
+{% endblock %}
+
+{% block content %}
+<nav style="margin-bottom: 2rem;">
+    <a href="{{ url_for('shop') }}" style="color: var(--gray);"><i class="fas fa-chevron-left"></i> Back to Shop</a>
+</nav>
+
+<div class="product-detail-grid">
+    <div class="product-gallery">
+        <img src="{{ product.img }}" alt="{{ product.name }}" onerror="this.src='https://placehold.co/600x600?text=No+Image'">
+    </div>
+
+    <div class="product-info-container">
+        <div class="product-info-header">
+            <div class="cat">{{ product.cat }}</div>
+            <h1>{{ product.name }}</h1>
+            <div class="price-tag">${{ "%.2f"|format(product.price) }}</div>
+            <div class="pkg-info">Unit: {{ product.pkg }}</div>
+        </div>
+
+        <div class="product-description">
+            <h4 style="margin-bottom: 0.5rem; color: var(--primary-color);">Description</h4>
+            <p>{{ product.description if product.description else "No detailed description available for this item." }}</p>
+        </div>
+
+        <div class="add-section">
+            <input type="number" id="qty" class="qty-input" value="1" min="1">
+            <button class="btn btn-primary" id="add-btn" style="flex: 1; padding: 1rem; font-size: 1.1rem;">
+                <i class="fas fa-shopping-cart"></i> ADD TO CART
+            </button>
+        </div>
+
+        <div class="meta-info">
+            <div><span>Item ID:</span> {{ product.id }}</div>
+            <div><span>Vendor:</span> {{ product.vendor }}</div>
+            <div><span>Availability:</span> In Stock</div>
+            <div><span>Taxable:</span> {{ 'Yes' if product.taxable else 'No' }}</div>
+        </div>
+    </div>
+</div>
+
+{% if related %}
+<div class="related-section">
+    <h2>Related Products</h2>
+    <div class="product-grid">
+        {% for item in related %}
+        <div class="product-card card">
+            <a href="{{ url_for('product', item_id=item.id) }}" style="flex: 1;">
+                <div style="background: #f8f9fa; border-radius: var(--border-radius); padding: 1rem; margin-bottom: 1rem; height: 180px; display: flex; align-items: center; justify-content: center;">
+                    <img src="{{ item.img }}" alt="{{ item.name }}" style="max-width: 100%; max-height: 100%; object-fit: contain;" onerror="this.src='https://placehold.co/300x300?text=No+Image'">
+                </div>
+                <h3 style="font-size: 0.9rem; margin-bottom: 0.5rem; height: 2.4rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">{{ item.name }}</h3>
+                <div style="font-weight: 700; color: var(--primary-color);">${{ "%.2f"|format(item.price) }}</div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('add-btn').addEventListener('click', function() {
+    const qty = document.getElementById('qty').value;
+    const formData = new FormData();
+    formData.append('item_id', '{{ product.id }}');
+    formData.append('qty', qty);
+
+    fetch("{{ url_for('add_to_cart') }}", {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            updateCartCount(data.cart_count);
+            this.innerHTML = '<i class="fas fa-check"></i> ADDED TO CART';
+            this.classList.remove('btn-primary');
+            this.classList.add('btn-secondary');
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-shopping-cart"></i> ADD TO CART';
+                this.classList.remove('btn-secondary');
+                this.classList.add('btn-primary');
+            }, 2000);
+        } else if (data.error === 'Not logged in') {
+            window.location.href = "{{ url_for('login') }}";
+        }
+    });
+});
+</script>
+{% endblock %}

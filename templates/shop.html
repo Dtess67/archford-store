@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Shop - Archford Store{% endblock %}
+
+{% block styles %}
+.shop-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 2.5rem;
+}
+
+/* Sidebar Filters */
+.filters-sidebar {
+    display: block !important;
+    min-width: 200px;
+    width: 250px;
+}
+
+.filters-sidebar h3 {
+    margin-bottom: 1.25rem;
+    font-size: 1.25rem;
+}
+
+.filter-group {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--light-gray);
+}
+
+.filter-group h4 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    color: var(--gray);
+    letter-spacing: 0.5px;
+}
+
+.category-list {
+    list-style: none;
+}
+
+.category-item {
+    margin-bottom: 0.5rem;
+}
+
+.category-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--border-radius);
+    font-size: 0.95rem;
+    color: var(--text-color);
+}
+
+.category-icon {
+    margin-right: 0.75rem;
+    width: 20px;
+    text-align: center;
+}
+
+.category-label {
+    flex: 1;
+}
+
+.category-count {
+    font-size: 0.8rem;
+    color: var(--gray);
+    margin-left: 0.5rem;
+}
+
+.category-link.active .category-count {
+    color: var(--white);
+    opacity: 0.8;
+}
+
+.category-link:hover {
+    background-color: var(--light-gray);
+    color: var(--primary-color);
+}
+
+.category-link.active {
+    background-color: var(--primary-color);
+    color: var(--white);
+    font-weight: 600;
+}
+
+/* Shop Controls */
+.shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    background: var(--white);
+    padding: 1rem 1.5rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--light-gray);
+}
+
+.results-count {
+    font-weight: 600;
+    color: var(--gray);
+}
+
+.search-form {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.search-input {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--light-gray);
+    border-radius: var(--border-radius);
+    width: 250px;
+}
+
+.sort-select {
+    padding: 0.5rem;
+    border: 1px solid var(--light-gray);
+    border-radius: var(--border-radius);
+    background: var(--white);
+}
+
+/* Product Grid (Reuse styles or slightly adjust) */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.5rem;
+}
+
+.product-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.product-img-wrapper {
+    position: relative;
+    padding-top: 100%;
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+}
+
+.product-img {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    object-fit: contain;
+    padding: 1rem;
+}
+
+.product-price {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    font-family: 'Outfit', sans-serif;
+}
+
+@media (max-width: 992px) {
+    .shop-layout {
+        grid-template-columns: 250px 1fr;
+    }
+}
+{% endblock %}
+
+{% block content %}
+<div class="shop-layout">
+    <aside class="filters-sidebar">
+        <div class="filter-group">
+            <h3>Categories</h3>
+            <ul style="list-style:none; padding:0; margin:0;">
+              {% for cat in categories %}
+              <li style="margin-bottom:4px;">
+                <a href="/shop?category={{ cat['id'] }}&search=&sort=default"
+                   style="display:block; padding:10px 14px; border-radius:6px;
+                          text-decoration:none; font-size:14px; font-weight:600;
+                          color:{% if active_category == cat['id'] %}#fff{% else %}#1a2744{% endif %};
+                          background:{% if active_category == cat['id'] %}#1a2744{% else %}#f0f4ff{% endif %};">
+                  {{ cat['icon'] }} {{ cat['label'] }}
+                  <span style="font-size:12px; opacity:0.7;">({{ cat['count'] }})</span>
+                </a>
+              </li>
+              {% endfor %}
+            </ul>
+        </div>
+
+        <div class="filter-group">
+            <h4>Quick Contact</h4>
+            <p style="font-size: 0.85rem; color: var(--gray);">Need a custom quote for a large order?</p>
+            <a href="{{ url_for('contact') }}" class="btn btn-outline" style="width: 100%; margin-top: 1rem; font-size: 0.8rem;">CONTACT REP</a>
+        </div>
+    </aside>
+
+    <div class="shop-main">
+        <div class="shop-header">
+            <div class="results-count">
+                {{ products|length }} Products Found
+            </div>
+            
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <form action="{{ url_for('shop') }}" method="GET" class="search-form">
+                    <input type="hidden" name="category" value="{{ active_category }}">
+                    <input type="hidden" name="sort" value="{{ sort }}">
+                    <input type="text" name="search" value="{{ search }}" class="search-input" placeholder="Search products...">
+                    <button type="submit" class="btn btn-primary" style="padding: 0.5rem 1rem;"><i class="fas fa-search"></i></button>
+                </form>
+
+                <form action="{{ url_for('shop') }}" method="GET" id="sort-form">
+                    <input type="hidden" name="category" value="{{ active_category }}">
+                    <input type="hidden" name="search" value="{{ search }}">
+                    <select name="sort" class="sort-select" onchange="document.getElementById('sort-form').submit()">
+                        <option value="default" {% if sort == 'default' %}selected{% endif %}>Sort by: Featured</option>
+                        <option value="price_asc" {% if sort == 'price_asc' %}selected{% endif %}>Price: Low to High</option>
+                        <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>Price: High to Low</option>
+                        <option value="name_asc" {% if sort == 'name_asc' %}selected{% endif %}>Name: A-Z</option>
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        {% if not products %}
+            <div class="card" style="text-align: center; padding: 4rem;">
+                <i class="fas fa-search" style="font-size: 3rem; color: var(--light-gray); margin-bottom: 1.5rem;"></i>
+                <h2>No products found</h2>
+                <p>Try adjusting your search or filters.</p>
+                <a href="{{ url_for('shop', category='ALL') }}" class="btn btn-primary" style="margin-top: 1.5rem;">Clear All Filters</a>
+            </div>
+        {% else %}
+            <div class="product-grid">
+                {% for item in products %}
+                <div class="product-card card">
+                    <a href="{{ url_for('product', item_id=item.id) }}" class="product-img-wrapper">
+                        <img src="{{ item.img }}" alt="{{ item.name }}" class="product-img" onerror="this.src='https://placehold.co/400x400?text=No+Image'">
+                    </a>
+                    <div class="product-info" style="flex: 1;">
+                        <div style="font-size: 0.7rem; color: var(--secondary-color); font-weight: 700; text-transform: uppercase;">{{ item.cat }}</div>
+                        <a href="{{ url_for('product', item_id=item.id) }}">
+                            <h3 style="font-size: 0.95rem; margin: 0.25rem 0 0.5rem; height: 2.5rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">{{ item.name }}</h3>
+                        </a>
+                        <div class="product-price">${{ "%.2f"|format(item.price) }}</div>
+                        <div style="font-size: 0.8rem; color: var(--gray);">Per {{ item.pkg }}</div>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <button class="btn btn-primary add-to-cart-btn" data-id="{{ item.id }}" style="width: 100%; font-size: 0.85rem;">
+                            <i class="fas fa-cart-plus"></i> ADD
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const formData = new FormData();
+        formData.append('item_id', id);
+        formData.append('qty', 1);
+
+        fetch("{{ url_for('add_to_cart') }}", {
+            method: 'POST',
+            body: formData
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                updateCartCount(data.cart_count);
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-check"></i>';
+                this.classList.remove('btn-primary');
+                this.classList.add('btn-secondary');
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('btn-secondary');
+                    this.classList.add('btn-primary');
+                }, 1500);
+            } else if (data.error === 'Not logged in') {
+                window.location.href = "{{ url_for('login') }}";
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
