@@ -4,6 +4,7 @@ import database
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = 'archford-secret-key-2026'
+database.init_db()
 
 # ─── HOME ───────────────────────────────────────────
 @app.route('/')
@@ -177,5 +178,4 @@ def contact():
 
 # ─── RUN ────────────────────────────────────────────
 if __name__ == '__main__':
-    database.init_db()
     app.run(debug=True, host='0.0.0.0', port=5000)
