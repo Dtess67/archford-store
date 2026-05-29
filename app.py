@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 import database
+from functools import wraps
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -174,7 +175,102 @@ def orders():
 # ─── CONTACT ────────────────────────────────────────
 @app.route('/contact')
 def contact():
-    return render_template('contact.html')
+    settings = database.get_settings()
+    return render_template('contact.html', settings=settings)
+
+# ─── ADMIN ──────────────────────────────────────────
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin' not in session:
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if username == 'admin' and password == 'archford-admin-2026':
+            session['admin'] = True
+            return redirect(url_for('admin_dashboard'))
+        return render_template('admin.html', error='Invalid admin credentials')
+    return render_template('admin.html')
+
+@app.route('/admin/logout')
+def admin_logout():
+    session.pop('admin', None)
+    return redirect(url_for('admin_login'))
+
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    stats = database.get_admin_stats()
+    return render_template('admin.html', stats=stats)
+
+@app.route('/admin/products')
+@admin_required
+def admin_products():
+    products = database.get_all_products()
+    return render_template('admin.html', products=products)
+
+@app.route('/admin/products/edit/<item_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_product_edit(item_id):
+    product = database.get_product(item_id)
+    if request.method == 'POST':
+        data = {
+            'name': request.form.get('name'),
+            'description': request.form.get('description'),
+            'price': float(request.form.get('price')),
+            'pkg': request.form.get('pkg'),
+            'cat': request.form.get('cat'),
+            'active': int(request.form.get('active'))
+        }
+        database.update_product(item_id, data)
+        flash('Product updated successfully!', 'success')
+        return redirect(url_for('admin_products'))
+    
+    categories = database.get_categories()
+    return render_template('admin.html', product=product, categories=categories)
+
+@app.route('/admin/products/new', methods=['GET', 'POST'])
+@admin_required
+def admin_product_new():
+    if request.method == 'POST':
+        data = {
+            'id': request.form.get('id'),
+            'name': request.form.get('name'),
+            'description': request.form.get('description'),
+            'price': float(request.form.get('price')),
+            'pkg': request.form.get('pkg'),
+            'cat': request.form.get('cat'),
+            'active': int(request.form.get('active'))
+        }
+        database.add_product(data)
+        flash('New product added successfully!', 'success')
+        return redirect(url_for('admin_products'))
+    
+    categories = database.get_categories()
+    return render_template('admin.html', categories=categories)
+
+@app.route('/admin/contact', methods=['GET', 'POST'])
+@admin_required
+def admin_contact():
+    if request.method == 'POST':
+        data = {
+            'address': request.form.get('address'),
+            'phone': request.form.get('phone'),
+            'hours': request.form.get('hours')
+        }
+        database.update_settings(data)
+        flash('Contact information updated!', 'success')
+        return redirect(url_for('admin_dashboard'))
+    
+    settings = database.get_settings()
+    return render_template('admin.html', settings=settings)
 
 # ─── RUN ────────────────────────────────────────────
 if __name__ == '__main__':

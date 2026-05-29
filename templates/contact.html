@@ -86,8 +86,8 @@
             <div class="method-icon"><i class="fas fa-phone"></i></div>
             <div class="method-details">
                 <h4>Call Us</h4>
-                <p>(800) 555-ARCH (2724)</p>
-                <p>Mon-Fri, 8:00am - 5:00pm CST</p>
+                <p>{{ settings.phone or '(800) 555-ARCH (2724)' }}</p>
+                <p>{{ settings.hours or 'Mon-Fri, 8:00am - 5:00pm CST' }}</p>
             </div>
         </div>
 
@@ -104,8 +104,7 @@
             <div class="method-icon"><i class="fas fa-map-marker-alt"></i></div>
             <div class="method-details">
                 <h4>Regional Office</h4>
-                <p>2200 Prince Street</p>
-                <p>Conway, AR 72032</p>
+                <p style="white-space: pre-line;">{{ settings.address or '2200 Prince Street\nConway, AR 72032' }}</p>
             </div>
         </div>
     </div>

@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - Archford Store{% endblock %}
+
+{% block styles %}
+.admin-container {
+    padding: 2rem 0;
+}
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+.admin-card {
+    background: var(--white);
+    padding: 2rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--light-gray);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+.stat-card {
+    background: var(--primary-color);
+    color: var(--white);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    text-align: center;
+}
+.stat-card h3 {
+    color: var(--white);
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+.stat-card p {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+.admin-nav {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+}
+.admin-nav a {
+    padding: 0.5rem 1rem;
+    background: #e9ecef;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+.admin-nav a.active {
+    background: var(--primary-color);
+    color: var(--white);
+}
+.btn-edit {
+    background: var(--secondary-color);
+    color: var(--white);
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+}
+.login-form {
+    max-width: 400px;
+    margin: 4rem auto;
+}
+{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    {% if not session.admin and request.endpoint == 'admin_login' %}
+        <div class="admin-card login-form">
+            <h2>Admin Login</h2>
+            <form action="{{ url_for('admin_login') }}" method="POST" style="margin-top: 1.5rem;">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" name="username" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
+                {% if error %}
+                    <p style="color: var(--secondary-color); margin-bottom: 1rem;">{{ error }}</p>
+                {% endif %}
+                <button type="submit" class="btn" style="background: var(--primary-color); color: white; width: 100%; padding: 0.8rem;">Login</button>
+            </form>
+        </div>
+    {% elif session.admin %}
+        <div class="admin-header">
+            <h1>Admin Panel</h1>
+            <a href="{{ url_for('admin_logout') }}" class="nav-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+
+        <div class="admin-nav">
+            <a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">Dashboard</a>
+            <a href="{{ url_for('admin_products') }}" class="{% if 'products' in request.endpoint %}active{% endif %}">Products</a>
+            <a href="{{ url_for('admin_contact') }}" class="{% if request.endpoint == 'admin_contact' %}active{% endif %}">Contact Info</a>
+        </div>
+
+        {% if request.endpoint == 'admin_dashboard' %}
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>{{ stats.products }}</h3>
+                    <p>Total Products</p>
+                </div>
+                <div class="stat-card">
+                    <h3>{{ stats.orders }}</h3>
+                    <p>Total Orders</p>
+                </div>
+                <div class="stat-card">
+                    <h3>{{ stats.users }}</h3>
+                    <p>Total Users</p>
+                </div>
+            </div>
+        {% elif request.endpoint == 'admin_products' %}
+            <div class="admin-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h2>Product Management</h2>
+                    <a href="{{ url_for('admin_product_new') }}" class="btn" style="background: var(--primary-color); color: white; padding: 0.5rem 1rem;">+ New Product</a>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Active</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products %}
+                        <tr>
+                            <td>{{ product.id }}</td>
+                            <td>{{ product.name }}</td>
+                            <td>{{ product.cat }}</td>
+                            <td>${{ "%.2f"|format(product.price) }}</td>
+                            <td>{{ 'Yes' if product.active else 'No' }}</td>
+                            <td><a href="{{ url_for('admin_product_edit', item_id=product.id) }}" class="btn-edit">Edit</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif request.endpoint in ['admin_product_edit', 'admin_product_new'] %}
+            <div class="admin-card">
+                <h2>{% if product %}Edit Product: {{ product.id }}{% else %}New Product{% endif %}</h2>
+                <form method="POST" style="margin-top: 1.5rem;">
+                    <div class="grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Product ID</label>
+                            <input type="text" name="id" class="form-control" value="{{ product.id if product else '' }}" {% if product %}readonly{% endif %} required>
+                        </div>
+                        <div class="form-group">
+                            <label>Name</label>
+                            <input type="text" name="name" class="form-control" value="{{ product.name if product else '' }}" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" class="form-control" rows="3">{{ product.description if product else '' }}</textarea>
+                    </div>
+                    <div class="grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Price</label>
+                            <input type="number" step="0.01" name="price" class="form-control" value="{{ product.price if product else '' }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Packaging</label>
+                            <input type="text" name="pkg" class="form-control" value="{{ product.pkg if product else '' }}">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select name="cat" class="form-control">
+                                {% for cat in categories %}
+                                <option value="{{ cat.code }}" {% if product and product.cat == cat.code %}selected{% endif %}>{{ cat.description }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Active</label>
+                        <select name="active" class="form-control">
+                            <option value="1" {% if not product or product.active %}selected{% endif %}>Yes</option>
+                            <option value="0" {% if product and not product.active %}selected{% endif %}>No</option>
+                        </select>
+                    </div>
+                    <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                        <button type="submit" class="btn" style="background: var(--primary-color); color: white; padding: 0.8rem 2rem;">Save Product</button>
+                        <a href="{{ url_for('admin_products') }}" class="btn" style="background: var(--gray); color: white; padding: 0.8rem 2rem;">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        {% elif request.endpoint == 'admin_contact' %}
+            <div class="admin-card">
+                <h2>Edit Contact Information</h2>
+                <form method="POST" style="margin-top: 1.5rem;">
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea name="address" class="form-control" rows="3">{{ settings.address }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="text" name="phone" class="form-control" value="{{ settings.phone }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Hours</label>
+                        <input type="text" name="hours" class="form-control" value="{{ settings.hours }}">
+                    </div>
+                    <button type="submit" class="btn" style="background: var(--primary-color); color: white; padding: 0.8rem 2rem; margin-top: 1rem;">Update Settings</button>
+                </form>
+            </div>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}

@@ -17,24 +17,7 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
 
-    # Determine if initialization is required based on users table data
-    need_init = False
-    try:
-        # Try to read from users; if table doesn't exist, this will raise
-        c.execute('SELECT COUNT(*) FROM users')
-        count = c.fetchone()[0]
-        if count == 0:
-            need_init = True
-    except sqlite3.Error:
-        # Table doesn't exist or other DB error — trigger full init
-        need_init = True
-
-    if not need_init:
-        conn.close()
-        return
-
-    print("Building local database...")
-
+    # Create tables always
     # USERS (mirrors dbo_AR_MasterTable)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         username TEXT PRIMARY KEY,
@@ -121,15 +104,27 @@ def init_db():
         FOREIGN KEY (order_num) REFERENCES orders(order_num)
     )''')
 
+    # SETTINGS (for contact info etc)
+    c.execute('''CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )''')
+    
+    # Default contact info
+    c.execute('INSERT OR IGNORE INTO settings VALUES ("address", "2200 Prince Street\nConway, AR 72032")')
+    c.execute('INSERT OR IGNORE INTO settings VALUES ("phone", "(800) 555-ARCH (2724)")')
+    c.execute('INSERT OR IGNORE INTO settings VALUES ("hours", "Mon-Fri, 8:00am - 5:00pm CST")')
+
+    # Check if seeding is needed
+    c.execute('SELECT COUNT(*) FROM users')
+    if c.fetchone()[0] == 0:
+        print("Seeding database...")
+        _seed_inventory_codes(conn)
+        _seed_products(conn)
+        _seed_users(conn)
+
     conn.commit()
-
-    # SEED DATA
-    _seed_inventory_codes(conn)
-    _seed_products(conn)
-    _seed_users(conn)
-
     conn.close()
-    print(f"Database built successfully at {DB_PATH}")
 
 # ─────────────────────────────────────────────
 # SEED INVENTORY CODES
@@ -550,3 +545,67 @@ def get_user_orders(username):
         result.append(o)
     conn.close()
     return result
+
+# ─── ADMIN HELPERS ───────────────────────────────────
+
+def get_admin_stats():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM products')
+    total_products = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM orders')
+    total_orders = c.fetchone()[0]
+    c.execute('SELECT COUNT(*) FROM users')
+    total_users = c.fetchone()[0]
+    conn.close()
+    return {
+        'products': total_products,
+        'orders': total_orders,
+        'users': total_users
+    }
+
+def get_all_products():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM products ORDER BY id ASC')
+    products = [dict(row) for row in c.fetchall()]
+    conn.close()
+    return products
+
+def update_product(item_id, data):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('''UPDATE products SET 
+                 name = ?, description = ?, price = ?, 
+                 pkg = ?, cat = ?, active = ?
+                 WHERE id = ?''', 
+              (data['name'], data['description'], data['price'], 
+               data['pkg'], data['cat'], data['active'], item_id))
+    conn.commit()
+    conn.close()
+
+def add_product(data):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('''INSERT INTO products (id, name, description, price, pkg, cat, active)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
+              (data['id'], data['name'], data['description'], data['price'],
+               data['pkg'], data['cat'], data['active']))
+    conn.commit()
+    conn.close()
+
+def get_settings():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM settings')
+    settings = {row['key']: row['value'] for row in c.fetchall()}
+    conn.close()
+    return settings
+
+def update_settings(settings_dict):
+    conn = get_db()
+    c = conn.cursor()
+    for key, value in settings_dict.items():
+        c.execute('UPDATE settings SET value = ? WHERE key = ?', (value, key))
+    conn.commit()
+    conn.close()
