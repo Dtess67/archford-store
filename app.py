@@ -7,6 +7,8 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.secret_key = config.SECRET_KEY
 database.init_db()
+import os
+print(f"STARTUP: DATABASE_URL set = {bool(os.environ.get('DATABASE_URL'))}", flush=True)
 
 # ─── HOME ───────────────────────────────────────────
 @app.route('/')
