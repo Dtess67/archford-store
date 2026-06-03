@@ -1606,16 +1606,23 @@ def get_related_products(category, exclude_id, limit=4):
 def save_order(order_data):
     conn = get_db()
     c = _cursor(conn)
-    order_num = f"AF-{datetime.now().strftime('%Y')}-{c.execute('SELECT COUNT(*) FROM orders').fetchone()[0] + 10001}"
+    p = _p()
+
+    # Get order count for order number generation
+    c.execute('SELECT COUNT(*) FROM orders')
+    row = c.fetchone()
+    count = row['COUNT(*)'] if isinstance(row, dict) else row[0]
+    order_num = f"AF-{datetime.now().strftime('%Y')}-{count + 10001}"
+
     subtotal = sum(i['price'] * i['qty'] for i in order_data['items'])
     shipping = 0 if subtotal >= 50 else 7.50
     total = subtotal + shipping
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    c.execute('''INSERT INTO orders
+    c.execute(f'''INSERT INTO orders
         (order_num, username, school, contact, email, phone, address, city, state,
          zip, po_number, payment, ship_later, notes, subtotal, shipping, total, status, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        VALUES ({_ph(19)})''',
         (order_num,
          order_data['user']['username'],
          order_data['school'],
@@ -1630,18 +1637,14 @@ def save_order(order_data):
          order_data.get('payment', 'P-Card'),
          order_data.get('ship_later', 'N'),
          order_data.get('notes', ''),
-         subtotal,
-         shipping,
-         total,
-         'Pending',
-         now))
+         subtotal, shipping, total, 'Pending', now))
 
     for item in order_data['items']:
         product = get_product(item['id'])
         taxable = product['taxable'] if product else 0
-        c.execute('''INSERT INTO order_items
+        c.execute(f'''INSERT INTO order_items
             (order_num, item_id, name, description, cat, pkg, qty, unit_price, taxable, line_total)
-            VALUES (?,?,?,?,?,?,?,?,?,?)''',
+            VALUES ({_ph(10)})''',
             (order_num,
              item['id'],
              item['name'],
@@ -1662,56 +1665,42 @@ def get_order(order_num):
         return None
     conn = get_db()
     c = _cursor(conn)
-    order = c.execute(
-        'SELECT * FROM orders WHERE order_num=?', (order_num,)
-    ).fetchone()
+    p = _p()
+    c.execute(f'SELECT * FROM orders WHERE order_num={p}', (order_num,))
+    order = c.fetchone()
     if not order:
         conn.close()
         return None
     order = dict(order)
-    items = c.execute(
-        'SELECT * FROM order_items WHERE order_num=?', (order_num,)
-    ).fetchall()
-    order['order_items'] = [dict(i) for i in items]
+    c.execute(f'SELECT * FROM order_items WHERE order_num={p}', (order_num,))
+    order['order_items'] = [dict(i) for i in c.fetchall()]
     conn.close()
     return order
 
 def get_user_orders(username):
     conn = get_db()
     c = _cursor(conn)
-    orders = c.execute(
-        'SELECT * FROM orders WHERE username=? ORDER BY created_at DESC',
-        (username,)
-    ).fetchall()
-    result = []
+    p = _p()
+    c.execute(f'SELECT * FROM orders WHERE username={p} ORDER BY created_at DESC', (username,))
+    orders = [dict(o) for o in c.fetchall()]
     for order in orders:
-        o = dict(order)
-        items = c.execute(
-            'SELECT * FROM order_items WHERE order_num=?',
-            (order['order_num'],)
-        ).fetchall()
-        o['order_items'] = [dict(i) for i in items]
-        result.append(o)
+        c.execute(f'SELECT * FROM order_items WHERE order_num={p}', (order['order_num'],))
+        order['order_items'] = [dict(i) for i in c.fetchall()]
     conn.close()
-    return result
+    return orders
 
 # ─── ADMIN HELPERS ───────────────────────────────────
 
 def get_admin_stats():
     conn = get_db()
     c = _cursor(conn)
-    c.execute('SELECT COUNT(*) FROM products')
-    total_products = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM orders')
-    total_orders = c.fetchone()[0]
-    c.execute('SELECT COUNT(*) FROM users')
-    total_users = c.fetchone()[0]
+    stats = {}
+    for key, table in [('products','products'),('orders','orders'),('users','users')]:
+        c.execute(f'SELECT COUNT(*) as cnt FROM {table}')
+        row = c.fetchone()
+        stats[key] = row['cnt'] if isinstance(row, dict) else row[0]
     conn.close()
-    return {
-        'products': total_products,
-        'orders': total_orders,
-        'users': total_users
-    }
+    return stats
 
 def get_all_products():
     conn = get_db()
