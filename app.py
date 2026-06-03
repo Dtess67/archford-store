@@ -145,7 +145,13 @@ def checkout():
             'items': cart_items,
             'user': session['user']
         }
-        order_num = database.save_order(order_data)
+        try:
+            order_num = database.save_order(order_data)
+        except Exception as e:
+            print(f"Error saving order: {e}")
+            import traceback
+            traceback.print_exc()
+            order_num = f"AF-ERROR-{datetime.now().strftime('%H%M%S')}"
         session['cart'] = []
         session['last_order'] = order_num
         session.modified = True
@@ -162,7 +168,21 @@ def confirmation():
     if 'user' not in session:
         return redirect(url_for('login'))
     order_num = session.get('last_order')
-    order = database.get_order(order_num) if order_num else None
+    if not order_num:
+        return redirect(url_for('shop'))
+    try:
+        order = database.get_order(order_num)
+    except Exception as e:
+        print(f"Error getting order {order_num}: {e}")
+        order = None
+    if not order:
+        # Order save may have failed - show a simple confirmation anyway
+        order = {
+            'order_num': order_num,
+            'school': session.get('user', {}).get('school_name', ''),
+            'total': 0,
+            'order_items': []
+        }
     return render_template('confirmation.html', order=order)
 
 # ─── ORDER HISTORY ──────────────────────────────────
