@@ -1,11 +1,13 @@
-import sqlite3
 import os
+import sqlite3
 from datetime import datetime
+from contextlib import contextmanager
+import config
 
-DB_PATH = 'archford.db'
+if config.DB_ENGINE == 'mysql':
+    import mysql.connector
 
 def get_image_url(item_id):
-    """Returns local path if exists, otherwise original URL."""
     local_path = f"static/images/items/{item_id}.jpg"
     if os.path.exists(local_path):
         return f"/{local_path}"
@@ -15,7 +17,7 @@ def get_image_url(item_id):
 # DATABASE INIT
 # ─────────────────────────────────────────────
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(config.SQLITE_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 

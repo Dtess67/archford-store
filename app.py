@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 import database
 from functools import wraps
+import config
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
-app.secret_key = 'archford-secret-key-2026'
+app.secret_key = config.SECRET_KEY
 database.init_db()
 
 # ─── HOME ───────────────────────────────────────────
@@ -193,7 +194,7 @@ def admin_login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        if username == 'admin' and password == 'archford-admin-2026':
+        if username == config.ADMIN_USERNAME and password == config.ADMIN_PASSWORD:
             session['admin'] = True
             return redirect(url_for('admin_dashboard'))
         return render_template('admin.html', error='Invalid admin credentials')
