@@ -1,4 +1,5 @@
 import os
+import re
 import sqlite3
 from datetime import datetime
 from contextlib import contextmanager
@@ -29,31 +30,33 @@ def _random():
 def get_db():
     if config.DB_ENGINE == 'mysql':
         import mysql.connector
-        url = config.DATABASE_URL
-        # Parse mysql+mysqlconnector://user:pass@/dbname?unix_socket=...
-        import re
-        match = re.match(r'mysql\+mysqlconnector://([^:]+):([^@]+)@/([^?]+)\?unix_socket=(.+)', url)
-        conn = None
-        if match:
-            user, password, database, unix_socket = match.groups()
-            conn = mysql.connector.connect(
-                user=user,
-                password=password,
-                database=database,
-                unix_socket=unix_socket
-            )
-            # Make MySQL return rows as dictionaries like SQLite does
-            conn._cursor_class = mysql.connector.cursor.MySQLCursorDict
+        match = re.match(r'mysql\+mysqlconnector://([^:]+):([^@]+)@/([^?]+)\?unix_socket=(.+)', config.DATABASE_URL)
+        if not match:
+            raise ValueError(f"Cannot parse DATABASE_URL: {config.DATABASE_URL}")
+        user, password, database, unix_socket = match.groups()
+        conn = mysql.connector.connect(
+            user=user,
+            password=password,
+            database=database,
+            unix_socket=unix_socket
+        )
         return conn
     else:
         conn = sqlite3.connect(config.SQLITE_PATH)
         conn.row_factory = sqlite3.Row
         return conn
 
+def _cursor(conn):
+    if config.DB_ENGINE == 'mysql':
+        import mysql.connector
+        return conn.cursor(dictionary=True)
+    else:
+        return conn.cursor()
+
 def init_db():
     """Create all tables and seed data if users table is missing or empty."""
     conn = get_db()
-    c = conn.cursor()
+    c = _cursor(conn)
 
     # Create tables always
     # USERS (mirrors dbo_AR_MasterTable)
@@ -1471,7 +1474,8 @@ def _seed_users(conn):
 # ─────────────────────────────────────────────
 def get_user(username, password):
     conn = get_db()
-    user = conn.execute(
+    c = _cursor(conn)
+    user = c.execute(
         'SELECT * FROM users WHERE username=? AND password=?',
         (username, password)
     ).fetchone()
@@ -1485,7 +1489,8 @@ def get_user(username, password):
 # ─────────────────────────────────────────────
 def get_categories():
     conn = get_db()
-    cats = conn.execute(
+    c = _cursor(conn)
+    cats = c.execute(
         'SELECT DISTINCT cat FROM products WHERE active=1 ORDER BY cat'
     ).fetchall()
     conn.close()
@@ -1508,7 +1513,8 @@ def get_categories():
     for row in cats:
         cat = row['cat']
         conn2 = get_db()
-        count = conn2.execute(
+        c2 = _cursor(conn2)
+        count = c2.execute(
             'SELECT COUNT(*) as c FROM products WHERE cat=? AND active=1', (cat,)
         ).fetchone()['c']
         conn2.close()
@@ -1524,6 +1530,7 @@ def get_categories():
 
 def get_products(category='ALL', search='', sort='default'):
     conn = get_db()
+    c = _cursor(conn)
     query = 'SELECT * FROM products WHERE active=1'
     params = []
     if category and category != 'ALL':
@@ -1541,7 +1548,7 @@ def get_products(category='ALL', search='', sort='default'):
         query += ' ORDER BY name ASC'
     else:
         query += ' ORDER BY cat, name'
-    products = conn.execute(query, params).fetchall()
+    products = c.execute(query, params).fetchall()
     conn.close()
     result = []
     for p in products:
@@ -1552,7 +1559,8 @@ def get_products(category='ALL', search='', sort='default'):
 
 def get_product(item_id):
     conn = get_db()
-    product = conn.execute(
+    c = _cursor(conn)
+    product = c.execute(
         'SELECT * FROM products WHERE id=?', (item_id,)
     ).fetchone()
     conn.close()
@@ -1564,7 +1572,8 @@ def get_product(item_id):
 
 def get_featured_products(limit=8):
     conn = get_db()
-    products = conn.execute(
+    c = _cursor(conn)
+    products = c.execute(
         f'SELECT * FROM products WHERE active=1 ORDER BY {_random()} LIMIT ?',
         (limit,)
     ).fetchall()
@@ -1578,7 +1587,8 @@ def get_featured_products(limit=8):
 
 def get_related_products(category, exclude_id, limit=4):
     conn = get_db()
-    products = conn.execute(
+    c = _cursor(conn)
+    products = c.execute(
         f'SELECT * FROM products WHERE cat=? AND id!=? AND active=1 ORDER BY {_random()} LIMIT ?',
         (category, exclude_id, limit)
     ).fetchall()
@@ -1595,13 +1605,14 @@ def get_related_products(category, exclude_id, limit=4):
 # ─────────────────────────────────────────────
 def save_order(order_data):
     conn = get_db()
-    order_num = f"AF-{datetime.now().strftime('%Y')}-{conn.execute('SELECT COUNT(*) FROM orders').fetchone()[0] + 10001}"
+    c = _cursor(conn)
+    order_num = f"AF-{datetime.now().strftime('%Y')}-{c.execute('SELECT COUNT(*) FROM orders').fetchone()[0] + 10001}"
     subtotal = sum(i['price'] * i['qty'] for i in order_data['items'])
     shipping = 0 if subtotal >= 50 else 7.50
     total = subtotal + shipping
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    conn.execute('''INSERT INTO orders
+    c.execute('''INSERT INTO orders
         (order_num, username, school, contact, email, phone, address, city, state,
          zip, po_number, payment, ship_later, notes, subtotal, shipping, total, status, created_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
@@ -1628,7 +1639,7 @@ def save_order(order_data):
     for item in order_data['items']:
         product = get_product(item['id'])
         taxable = product['taxable'] if product else 0
-        conn.execute('''INSERT INTO order_items
+        c.execute('''INSERT INTO order_items
             (order_num, item_id, name, description, cat, pkg, qty, unit_price, taxable, line_total)
             VALUES (?,?,?,?,?,?,?,?,?,?)''',
             (order_num,
@@ -1650,14 +1661,15 @@ def get_order(order_num):
     if not order_num:
         return None
     conn = get_db()
-    order = conn.execute(
+    c = _cursor(conn)
+    order = c.execute(
         'SELECT * FROM orders WHERE order_num=?', (order_num,)
     ).fetchone()
     if not order:
         conn.close()
         return None
     order = dict(order)
-    items = conn.execute(
+    items = c.execute(
         'SELECT * FROM order_items WHERE order_num=?', (order_num,)
     ).fetchall()
     order['order_items'] = [dict(i) for i in items]
@@ -1666,14 +1678,15 @@ def get_order(order_num):
 
 def get_user_orders(username):
     conn = get_db()
-    orders = conn.execute(
+    c = _cursor(conn)
+    orders = c.execute(
         'SELECT * FROM orders WHERE username=? ORDER BY created_at DESC',
         (username,)
     ).fetchall()
     result = []
     for order in orders:
         o = dict(order)
-        items = conn.execute(
+        items = c.execute(
             'SELECT * FROM order_items WHERE order_num=?',
             (order['order_num'],)
         ).fetchall()
@@ -1686,7 +1699,7 @@ def get_user_orders(username):
 
 def get_admin_stats():
     conn = get_db()
-    c = conn.cursor()
+    c = _cursor(conn)
     c.execute('SELECT COUNT(*) FROM products')
     total_products = c.fetchone()[0]
     c.execute('SELECT COUNT(*) FROM orders')
@@ -1702,7 +1715,7 @@ def get_admin_stats():
 
 def get_all_products():
     conn = get_db()
-    c = conn.cursor()
+    c = _cursor(conn)
     c.execute('SELECT * FROM products ORDER BY id ASC')
     products = []
     for row in c.fetchall():
@@ -1714,7 +1727,7 @@ def get_all_products():
 
 def update_product(item_id, data):
     conn = get_db()
-    c = conn.cursor()
+    c = _cursor(conn)
     c.execute('''UPDATE products SET 
                  name = ?, description = ?, price = ?, 
                  pkg = ?, cat = ?, active = ?
@@ -1726,7 +1739,7 @@ def update_product(item_id, data):
 
 def add_product(data):
     conn = get_db()
-    c = conn.cursor()
+    c = _cursor(conn)
     c.execute('''INSERT INTO products (id, name, description, price, pkg, cat, active)
                  VALUES (?, ?, ?, ?, ?, ?, ?)''',
               (data['id'], data['name'], data['description'], data['price'],
@@ -1736,7 +1749,7 @@ def add_product(data):
 
 def get_settings():
     conn = get_db()
-    c = conn.cursor()
+    c = _cursor(conn)
     c.execute('SELECT * FROM settings')
     settings = {row['key']: row['value'] for row in c.fetchall()}
     conn.close()
@@ -1744,7 +1757,7 @@ def get_settings():
 
 def update_settings(settings_dict):
     conn = get_db()
-    c = conn.cursor()
+    c = _cursor(conn)
     for key, value in settings_dict.items():
         c.execute('UPDATE settings SET value = ? WHERE key = ?', (value, key))
     conn.commit()
