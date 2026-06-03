@@ -125,7 +125,7 @@
         </div>
         <div class="order-card-body">
             <div class="order-items-list">
-                {% for item in order.items %}
+                {% for item in order.order_items %}
                 <div class="order-item-row">
                     <span><strong>{{ item.qty }}x</strong> {{ item.name }}</span>
                     <span>${{ "%.2f"|format(item.line_total) }}</span>

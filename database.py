@@ -1660,7 +1660,7 @@ def get_order(order_num):
     items = conn.execute(
         'SELECT * FROM order_items WHERE order_num=?', (order_num,)
     ).fetchall()
-    order['items'] = [dict(i) for i in items]
+    order['order_items'] = [dict(i) for i in items]
     conn.close()
     return order
 
@@ -1677,7 +1677,7 @@ def get_user_orders(username):
             'SELECT * FROM order_items WHERE order_num=?',
             (order['order_num'],)
         ).fetchall()
-        o['items'] = [dict(i) for i in items]
+        o['order_items'] = [dict(i) for i in items]
         result.append(o)
     conn.close()
     return result
