@@ -13,13 +13,42 @@ def get_image_url(item_id):
         return f"/{local_path}"
     return f"https://archford.com/Content/images/items/{item_id}.jpg"
 
+def _p():
+    return '%s' if config.DB_ENGINE == 'mysql' else '?'
+
+def _ph(n=1):
+    ph = '%s' if config.DB_ENGINE == 'mysql' else '?'
+    return ', '.join([ph] * n)
+
+def _random():
+    return 'RAND()' if config.DB_ENGINE == 'mysql' else 'RANDOM()'
+
 # ─────────────────────────────────────────────
 # DATABASE INIT
 # ─────────────────────────────────────────────
 def get_db():
-    conn = sqlite3.connect(config.SQLITE_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if config.DB_ENGINE == 'mysql':
+        import mysql.connector
+        url = config.DATABASE_URL
+        # Parse mysql+mysqlconnector://user:pass@/dbname?unix_socket=...
+        import re
+        match = re.match(r'mysql\+mysqlconnector://([^:]+):([^@]+)@/([^?]+)\?unix_socket=(.+)', url)
+        conn = None
+        if match:
+            user, password, database, unix_socket = match.groups()
+            conn = mysql.connector.connect(
+                user=user,
+                password=password,
+                database=database,
+                unix_socket=unix_socket
+            )
+            # Make MySQL return rows as dictionaries like SQLite does
+            conn._cursor_class = mysql.connector.cursor.MySQLCursorDict
+        return conn
+    else:
+        conn = sqlite3.connect(config.SQLITE_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
 
 def init_db():
     """Create all tables and seed data if users table is missing or empty."""
@@ -120,9 +149,10 @@ def init_db():
     )''')
     
     # Default contact info
-    c.execute('INSERT OR IGNORE INTO settings VALUES ("address", "2200 Prince Street\nConway, AR 72032")')
-    c.execute('INSERT OR IGNORE INTO settings VALUES ("phone", "(800) 555-ARCH (2724)")')
-    c.execute('INSERT OR IGNORE INTO settings VALUES ("hours", "Mon-Fri, 8:00am - 5:00pm CST")')
+    ignore = 'IGNORE' if config.DB_ENGINE == 'mysql' else 'OR IGNORE'
+    c.execute(f'INSERT {ignore} INTO settings VALUES ("address", "2200 Prince Street\nConway, AR 72032")')
+    c.execute(f'INSERT {ignore} INTO settings VALUES ("phone", "(800) 555-ARCH (2724)")')
+    c.execute(f'INSERT {ignore} INTO settings VALUES ("hours", "Mon-Fri, 8:00am - 5:00pm CST")')
 
     # Check if seeding is needed
     c.execute('SELECT COUNT(*) FROM users')
@@ -158,8 +188,9 @@ def _seed_inventory_codes(conn):
         ('VV', 'AUDIO/VISUAL', 0, 'NT'),
         ('XX', 'MISC', 0, '15-04'),
     ]
+    ignore = 'IGNORE' if config.DB_ENGINE == 'mysql' else 'OR IGNORE'
     conn.executemany(
-        'INSERT OR IGNORE INTO inventory_codes VALUES (?,?,?,?)', codes)
+        f'INSERT {ignore} INTO inventory_codes VALUES (?,?,?,?)', codes)
     conn.commit()
 
 # ─────────────────────────────────────────────
@@ -1409,8 +1440,9 @@ def _seed_products(conn):
         ('R01-425', 'FLAIR 12 COLOR SET #74423', '', '', 'READING SUPPLIES', 'EACH', 14.6, None, None, None, None, 'https://archford.com/Content/images/items/R01-425.jpg', 1),
         ('R02-500', 'SANFORD HARDPOINT PEN - BLACK', 'SANFORD FABER #33041', '', 'READING SUPPLIES', 'EACH', 0.59, None, None, None, None, 'https://archford.com/Content/images/items/R02-500.jpg', 1)
     ]
+    ignore = 'IGNORE' if config.DB_ENGINE == 'mysql' else 'OR IGNORE'
     conn.executemany(
-        'INSERT OR IGNORE INTO products (id, name, description, vendor, cat, pkg, price, price2, price3, price4, price5, img, taxable) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        f'INSERT {ignore} INTO products (id, name, description, vendor, cat, pkg, price, price2, price3, price4, price5, img, taxable) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
         products)
     conn.commit()
     print(f'  Loaded {len(products)} products')
@@ -1429,7 +1461,8 @@ def _seed_users(conn):
          'James O. Emef', 'P.O. Box 700', 'DeWitt', 'AR', '72042',
          '(870) 946-3576', 'jemef@dewittschools.org', 'NT', '30', '30'),
     ]
-    conn.executemany('INSERT OR IGNORE INTO users VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', users)
+    ignore = 'IGNORE' if config.DB_ENGINE == 'mysql' else 'OR IGNORE'
+    conn.executemany(f'INSERT {ignore} INTO users VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)', users)
     conn.commit()
     print(f"  Loaded {len(users)} test users")
 
@@ -1532,7 +1565,7 @@ def get_product(item_id):
 def get_featured_products(limit=8):
     conn = get_db()
     products = conn.execute(
-        'SELECT * FROM products WHERE active=1 ORDER BY RANDOM() LIMIT ?',
+        f'SELECT * FROM products WHERE active=1 ORDER BY {_random()} LIMIT ?',
         (limit,)
     ).fetchall()
     conn.close()
@@ -1546,7 +1579,7 @@ def get_featured_products(limit=8):
 def get_related_products(category, exclude_id, limit=4):
     conn = get_db()
     products = conn.execute(
-        'SELECT * FROM products WHERE cat=? AND id!=? AND active=1 ORDER BY RANDOM() LIMIT ?',
+        f'SELECT * FROM products WHERE cat=? AND id!=? AND active=1 ORDER BY {_random()} LIMIT ?',
         (category, exclude_id, limit)
     ).fetchall()
     conn.close()
