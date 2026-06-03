@@ -159,7 +159,8 @@ def init_db():
 
     # Check if seeding is needed
     c.execute('SELECT COUNT(*) FROM users')
-    if c.fetchone()[0] == 0:
+    row = c.fetchone()
+    if (row['COUNT(*)'] if isinstance(row, dict) else row[0]) == 0:
         print("Seeding database...")
         _seed_inventory_codes(conn)
         _seed_products(conn)
@@ -1475,14 +1476,11 @@ def _seed_users(conn):
 def get_user(username, password):
     conn = get_db()
     c = _cursor(conn)
-    user = c.execute(
-        'SELECT * FROM users WHERE username=? AND password=?',
-        (username, password)
-    ).fetchone()
+    p = _p()
+    c.execute(f'SELECT * FROM users WHERE username={p} AND password={p}', (username, password))
+    user = c.fetchone()
     conn.close()
-    if user:
-        return dict(user)
-    return None
+    return dict(user) if user else None
 
 # ─────────────────────────────────────────────
 # PRODUCT FUNCTIONS
@@ -1514,9 +1512,9 @@ def get_categories():
         cat = row['cat']
         conn2 = get_db()
         c2 = _cursor(conn2)
-        count = c2.execute(
-            'SELECT COUNT(*) as c FROM products WHERE cat=? AND active=1', (cat,)
-        ).fetchone()['c']
+        c2.execute(f'SELECT COUNT(*) as c FROM products WHERE cat={_p()} AND active=1', (cat,))
+        row = c2.fetchone()
+        count = row['c'] if isinstance(row, dict) else row[0]
         conn2.close()
         total += count
         result.append({
@@ -1534,10 +1532,10 @@ def get_products(category='ALL', search='', sort='default'):
     query = 'SELECT * FROM products WHERE active=1'
     params = []
     if category and category != 'ALL':
-        query += ' AND cat=?'
+        query += f' AND cat={_p()}'
         params.append(category)
     if search:
-        query += ' AND (name LIKE ? OR id LIKE ? OR description LIKE ? OR cat LIKE ?)'
+        query += f' AND (name LIKE {_p()} OR id LIKE {_p()} OR description LIKE {_p()} OR cat LIKE {_p()})'
         s = f'%{search}%'
         params.extend([s, s, s, s])
     if sort == 'price_asc':
@@ -1560,9 +1558,8 @@ def get_products(category='ALL', search='', sort='default'):
 def get_product(item_id):
     conn = get_db()
     c = _cursor(conn)
-    product = c.execute(
-        'SELECT * FROM products WHERE id=?', (item_id,)
-    ).fetchone()
+    c.execute(f'SELECT * FROM products WHERE id={_p()}', (item_id,))
+    product = c.fetchone()
     conn.close()
     if product:
         d = dict(product)
@@ -1573,10 +1570,8 @@ def get_product(item_id):
 def get_featured_products(limit=8):
     conn = get_db()
     c = _cursor(conn)
-    products = c.execute(
-        f'SELECT * FROM products WHERE active=1 ORDER BY {_random()} LIMIT ?',
-        (limit,)
-    ).fetchall()
+    c.execute(f'SELECT * FROM products WHERE active=1 ORDER BY {_random()} LIMIT {_p()}', (limit,))
+    products = c.fetchall()
     conn.close()
     result = []
     for p in products:
@@ -1588,10 +1583,8 @@ def get_featured_products(limit=8):
 def get_related_products(category, exclude_id, limit=4):
     conn = get_db()
     c = _cursor(conn)
-    products = c.execute(
-        f'SELECT * FROM products WHERE cat=? AND id!=? AND active=1 ORDER BY {_random()} LIMIT ?',
-        (category, exclude_id, limit)
-    ).fetchall()
+    c.execute(f'SELECT * FROM products WHERE cat={_p()} AND id!={_p()} AND active=1 ORDER BY {_random()} LIMIT {_p()}', (category, exclude_id, limit))
+    products = c.fetchall()
     conn.close()
     result = []
     for p in products:
@@ -1717,10 +1710,10 @@ def get_all_products():
 def update_product(item_id, data):
     conn = get_db()
     c = _cursor(conn)
-    c.execute('''UPDATE products SET 
-                 name = ?, description = ?, price = ?, 
-                 pkg = ?, cat = ?, active = ?
-                 WHERE id = ?''', 
+    c.execute(f'''UPDATE products SET 
+                 name={_p()}, description={_p()}, price={_p()}, 
+                 pkg={_p()}, cat={_p()}, active={_p()}
+                 WHERE id={_p()}''',
               (data['name'], data['description'], data['price'], 
                data['pkg'], data['cat'], data['active'], item_id))
     conn.commit()
@@ -1729,8 +1722,8 @@ def update_product(item_id, data):
 def add_product(data):
     conn = get_db()
     c = _cursor(conn)
-    c.execute('''INSERT INTO products (id, name, description, price, pkg, cat, active)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)''',
+    c.execute(f'''INSERT INTO products (id, name, description, price, pkg, cat, active)
+                 VALUES ({_ph(7)})''',
               (data['id'], data['name'], data['description'], data['price'],
                data['pkg'], data['cat'], data['active']))
     conn.commit()
@@ -1748,6 +1741,6 @@ def update_settings(settings_dict):
     conn = get_db()
     c = _cursor(conn)
     for key, value in settings_dict.items():
-        c.execute('UPDATE settings SET value = ? WHERE key = ?', (value, key))
+        c.execute(f'UPDATE settings SET value={_p()} WHERE key={_p()}', (value, key))
     conn.commit()
     conn.close()
